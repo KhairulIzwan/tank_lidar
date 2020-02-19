@@ -34,4 +34,16 @@
 >>>> Add the authority of write: (such as /dev/ttyUSB0)
 >>>>> sudo chmod 666 /dev/ttyUSB0
 
+# Usage
+
+## Obstacle Detection
+> ### Previewing image (image_raw --> opencv)
+>> Terminal # 1
+>>> roscore
+
+>> Terminal # 2
+>>> rosrun rplidar_ros rplidarNode
+
+>> Terminal # 3
+>>> rosrun tank_lidar obstacle.py
 

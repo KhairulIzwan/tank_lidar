@@ -64,7 +64,7 @@ class Obstacle():
 
 			left_lidar_samples = scan.ranges[left_lidar_samples_ranges:]
 			right_lidar_samples = scan.ranges[:right_lidar_samples_ranges]
-			scan_filter.extend(left_lidar_samples + right_lidar_samples)
+			self.scan_filter.extend(left_lidar_samples + right_lidar_samples)
 
 		for i in range(samples_view):
 			if self.scan_filter[i] == float('Inf'):

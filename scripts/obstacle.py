@@ -30,15 +30,16 @@ Communications Failed
 
 class Obstacle():
 	def __init__(self):
-		"""  Initializing your ROS Node """
+		# Initializing your ROS Node """
 		rospy.init_node('tank_obstacle_node', anonymous=True)
-
+		
+		#
 		rospy.on_shutdown(self.shutdown)
 
-		""" Subscribe to the raw camera image topic """
+		# Subscribe to the raw camera image topic """
 		self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback)
 
-		self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+		self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1)
 
 	def callback(self, data):
 		self.get_scan(data)
@@ -76,7 +77,6 @@ class Obstacle():
 		self.twist = Twist()
 		turtlebot_moving = True
 
-#		lidar_distances = self.scan_filter
 		min_distance = min(self.scan_filter)
 
 		if min_distance < SAFE_STOP_DISTANCE:

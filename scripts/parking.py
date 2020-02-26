@@ -2,7 +2,7 @@
 
 #Title: Python Subscriber for Laser Scan (RPLiDar)
 #Author: Khairul Izwan Bin Kamsani - [12-02-2020]
-#Description: Distance Detection Subcriber Nodes (Python)
+#Description: Distance Detection Subcriber Nodes (Python) -- for Automatic Parking System
 
 from __future__ import print_function
 from __future__ import division
@@ -37,19 +37,21 @@ class Parking():
 		rospy.init_node('tank_parking_node', anonymous=True)
 		
 		# 
-		rospy.on_shutdown(self.shutdown)
-
-		# Subscribe to the scan topic
-		self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser)
+#		rospy.on_shutdown(self.shutdown)
 
 		# Subscribe to the encoder (Left) topic
 		self.encLeft_sub = rospy.Subscriber("/left_encoder", Float32, self.callback_encLeft)
 		
 		# Subscribe to the encoder (Right) topic
 		self.encRight_sub = rospy.Subscriber("/right_encoder", Float32, self.callback_encRight)
-		
-		# Publish to the cmd_vel topic
+#		
+#		# Publish to the cmd_vel topic
 		self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+		
+		# Subscribe to the scan topic
+#		self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.callback_laser)
+		self.scan_sub = rospy.Subscriber("/scan", LaserScan)
+		self.scan_parking_spot()
 
 	# Encode the subscribed scan topic
 	def callback_laser(self, data):
@@ -57,9 +59,20 @@ class Parking():
 		self.get_scan(data)
 
 		# Decision making
-		self.find_parking()
+		self.scan_parking_spot()
+		
+	# Encode the subscribed left_encoder topic
+	def callback_encLeft(self, data):
+		pass
+		
+	# Encode the subscribed right_encoder topic
+	def callback_encRight(self, data):
+		pass
 
-	def get_scan(self, scan):
+	def get_scan(self):
+		# Wait for the topic
+		scan = rospy.wait_for_message('/scan', LaserScan)
+		
 		# Create an empty array (for scan-ed data)
 		self.scan_filter = []
 		
@@ -92,59 +105,94 @@ class Parking():
 			elif math.isnan(self.scan_filter[i]):
 				self.scan_filter[i] = 0
 
-	def find_parking(self):
+	def scan_parking_spot(self):
 		# Initiate the topic
 		self.twist = Twist()
 		
 		# Initiate turtlebot movement
-		turtlebot_moving = True
-
-		# Check on min distance (Front, Left, and Right))
-		min_distance_right = self.scan_filter[0]
-		min_distance_front = self.scan_filter[90]
-		min_distance_left = self.scan_filter[180]
-
-		#rospy.loginfo([min_distance_left, min_distance_front, min_distance_right])
-
-		if min_distance_front < SAFE_STOP_DISTANCE:
-			if turtlebot_moving:
-				self.twist.linear.x = 0.0
-				self.twist.angular.z = 0.0
-				self.cmd_vel_pub.publish(self.twist)
-				turtlebot_moving = False
-				rospy.logerr('Stop!')
+#		turtlebot_moving = True
 		
-		elif min_distance_left > SAFE_PARK_DISTANCE and min_distance_right < SAFE_PARK_DISTANCE:
-			if turtlebot_moving:
-				self.twist.linear.x = 0.0
-				self.twist.angular.z = 0.0
-				self.cmd_vel_pub.publish(self.twist)
-				turtlebot_moving = False
-				rospy.loginfo('Parking Available on Left!')
-				
-		elif min_distance_left < SAFE_PARK_DISTANCE and min_distance_right > SAFE_PARK_DISTANCE:
-			if turtlebot_moving:
-				self.twist.linear.x = 0.0
-				self.twist.angular.z = 0.0
-				self.cmd_vel_pub.publish(self.twist)
-				turtlebot_moving = False
-				rospy.loginfo('Parking Available on Right!')
+		# Initiate step
+		step = 0
 		
-		elif min_distance_left > SAFE_PARK_DISTANCE and min_distance_right > SAFE_PARK_DISTANCE:
-			if turtlebot_moving:
+		while not rospy.is_shutdown():
+			# Get the scan-ed data
+			self.get_scan()
+
+			# Check on min distance (Front, Left, and Right))
+			min_distance_right = self.scan_filter[0]
+			min_distance_front = self.scan_filter[90]
+			min_distance_left = self.scan_filter[180]
+			
+			# First step, parking area entrance -- checking for parking
+			if step == 0:
+				# No Parking
+				if min_distance_front > SAFE_STOP_DISTANCE and min_distance_left < SAFE_PARK_DISTANCE and min_distance_right < SAFE_PARK_DISTANCE:
+					self.twist.linear.x = 5.0
+					self.twist.angular.z = 0.0
+#					turtlebot_moving = False
+					rospy.logerr('No Parking Space Available! Find Next')
+					
+				# Parking on both Left and Right	
+				elif min_distance_front > SAFE_STOP_DISTANCE and min_distance_left > SAFE_PARK_DISTANCE and min_distance_right > SAFE_PARK_DISTANCE:
+					self.twist.linear.x = 0.0
+					self.twist.angular.z = 0.0
+#					turtlebot_moving = False
+					rospy.logwarn('Parking Space Available! (Left and Right)')
+					step = 1
+					
+				# Parking on Left	
+				elif min_distance_front > SAFE_STOP_DISTANCE and min_distance_left > SAFE_PARK_DISTANCE and min_distance_right < SAFE_PARK_DISTANCE:
+					self.twist.linear.x = 0.0
+					self.twist.angular.z = 0.0
+#					turtlebot_moving = False
+					rospy.logwarn('Parking Space Available! (Left)')
+					step = 1
+					
+				# Parking on Right	
+				elif min_distance_front > SAFE_STOP_DISTANCE and min_distance_left < SAFE_PARK_DISTANCE and min_distance_right > SAFE_PARK_DISTANCE:
+					self.twist.linear.x = 0.0
+					self.twist.angular.z = 0.0
+#					turtlebot_moving = False
+					rospy.logwarn('Parking Space Available! (Right)')
+					step = 2
+					
+			# Found parking spot available on both side -- choose Left over Right
+			elif step == 1:
 				self.twist.linear.x = 0.0
+				self.twist.angular.z = 5.0
+#				turtlebot_moving = False
+				rospy.logwarn('Turn to Left')
+				step = 3
+
+			# Found parking spot available on right side
+			elif step == 2:
+				self.twist.linear.x = 0.0
+				self.twist.angular.z = -5.0
+#				turtlebot_moving = False
+				rospy.logwarn('Turn to Right')
+				step = 3
+
+			# Move in to parking slot
+			elif step == 3:
+				if min_distance_front > SAFE_STOP_DISTANCE:
+					self.twist.linear.x = 5.0
+					self.twist.angular.z = 0.0
+#					turtlebot_moving = False
+					rospy.logwarn('Move in to parking slot')
+				else:
+					step = 4
+			
+			# Autoparking Done
+			elif step == 4:
+				self.twist.linear.x = 5.0
 				self.twist.angular.z = 0.0
+#				turtlebot_moving = False
+				rospy.logwarn('Auto Parking Done')
 				self.cmd_vel_pub.publish(self.twist)
-				turtlebot_moving = False
-				rospy.loginfo('Parking Available on Left and Right!')
-		
-		else:
-			self.twist.linear.x = LINEAR_VEL
-			self.twist.angular.z = 0.0
+				sys.exit()
+
 			self.cmd_vel_pub.publish(self.twist)
-			turtlebot_moving = True
-			rospy.logwarn("Searching for Parking!")
-			rospy.loginfo('Distance of the left, front, and right : %f: %f: %f' % (min_distance_left, min_distance_front, min_distance_right))
 
 	def shutdown(self):
 		try:
@@ -156,8 +204,8 @@ class Parking():
 			pass
 
 def main(args):
-	vn = Parking()
 	try:
+		vn = Parking()
 		rospy.spin()
 	except KeyboardInterrupt:
 		rospy.loginfo("Parking Detection. [OFFLINE]...")
